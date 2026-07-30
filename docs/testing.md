@@ -90,4 +90,4 @@ GitHub's hosted runners already have a Docker daemon, so Testcontainers works th
 
 A pull request opened from a branch in this repository would otherwise run `fast-tests` twice, once for the push and once for the pull request. The job skips the pull request event when the head branch lives in this repository, which leaves forks covered.
 
-Require `build-and-test` as the status check in a branch ruleset. Requiring `fast-tests` as well would block those same-repo pull requests, since the job it skips reports nothing to wait for.
+Require `build-and-test` as the status check in a branch ruleset. `verify` runs surefire too, so requiring `fast-tests` as well adds no coverage.

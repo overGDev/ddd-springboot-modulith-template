@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A new push to the same ref makes the previous run obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-tests:
+    name: fast-tests
+    runs-on: ubuntu-latest
+    # A pull request from a branch in this repo already ran this job on its push event.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      # Surefire only: compiles both source sets and runs the tests that need no database.
+      - name: Compile and run fast tests
+        run: ./mvnw --batch-mode test
+
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      # Docker is preinstalled on the runner, so Testcontainers starts Postgres itself.
+      # `verify` runs surefire and then failsafe.
+      - name: Build and run all tests
+        run: ./mvnw --batch-mode verify

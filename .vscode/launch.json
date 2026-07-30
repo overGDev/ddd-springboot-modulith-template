@@ -1,0 +1,12 @@
+{
+  "configurations": [
+    {
+      "type": "java",
+      "name": "DddSpringbootModulithTemplate (Spring Boot)",
+      "request": "launch",
+      "mainClass": "com.example.dddspringbootmodulithtemplate.DddSpringbootModulithTemplateApplication",
+      "projectName": "ddd-springboot-modulith-template",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}

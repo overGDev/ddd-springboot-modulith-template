@@ -18,7 +18,7 @@ import com.example.dddspringbootmodulithtemplate.support.PostgresIntegrationTest
  * a failure with a useful message instead of an obscure Hibernate validation error.
  */
 @SpringBootTest
-class FlywayMigrationTest extends PostgresIntegrationTest {
+class FlywayMigrationIT extends PostgresIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

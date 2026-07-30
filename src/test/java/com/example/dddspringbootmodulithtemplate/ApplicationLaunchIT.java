@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import com.example.dddspringbootmodulithtemplate.support.PostgresIntegrationTest;
 
 @SpringBootTest
-class ApplicationLaunchTest extends PostgresIntegrationTest {
+class ApplicationLaunchIT extends PostgresIntegrationTest {
 
     @Test
     void contextLoads() {

@@ -7,12 +7,30 @@ The general rule here: if something has to stay true for the template to work, t
 ## Running them
 
 ```sh
-./mvnw test
+./mvnw verify   # everything
+./mvnw test     # only the tests that need no database
 ```
 
-Docker has to be available. The suite starts its own Postgres in a container, so nothing needs to be installed, configured, or running first, and `.env` is never read. A clean clone passes on any machine with a working Docker daemon.
+`verify` is the whole suite. `test` is the fast half of it, for the loop where you are writing domain logic and don't want to wait on a container.
+
+Docker has to be available for `verify`. The suite starts its own Postgres in a container, so nothing needs to be installed, configured, or running first, and `.env` is never read. A clean clone passes on any machine with a working Docker daemon.
 
 The first run pulls the Postgres image. After that the whole suite takes a few seconds, because one container is shared across every test class rather than started per class.
+
+## How the build splits them
+
+The suffix on a test class decides which plugin runs it and when.
+
+| Suffix | Plugin | Phase | Needs Docker |
+|---|---|---|---|
+| `*Test` | Surefire | `test` | No |
+| `*IT` | Failsafe | `integration-test` | Yes |
+
+`verify` runs both phases in that order, so failsafe never starts a container if a surefire test already failed. Surefire on its own answers in about two seconds, which is what makes the split worth having.
+
+Everything the template ships today is provisioning, so every test in it is an `*IT` and the surefire phase runs zero classes. The split is what makes the first test of a domain aggregate land in the fast tier by being named for it.
+
+Abstract base classes are ignored by both plugins regardless of their name, which is why [`PostgresIntegrationTest`](../src/test/java/com/example/dddspringbootmodulithtemplate/support/PostgresIntegrationTest.java) keeps its suffix without ever being collected as a test.
 
 ## The harness
 
@@ -30,11 +48,11 @@ Datasource properties come from the container at runtime. The properties in `app
 
 | Test | Claim |
 |---|---|
-| [`FlywayMigrationTest`](../src/test/java/com/example/dddspringbootmodulithtemplate/platform/FlywayMigrationTest.java) | Every migration applies cleanly to an empty database, and the event publication registry exists |
-| [`DatabaseRoleSeparationTest`](../src/test/java/com/example/dddspringbootmodulithtemplate/platform/DatabaseRoleSeparationTest.java) | `ddd_app` connects as itself, can read and write rows, and cannot create or drop tables |
-| `ApplicationLaunchTest` | The context starts against the migrated schema |
+| [`FlywayMigrationIT`](../src/test/java/com/example/dddspringbootmodulithtemplate/platform/FlywayMigrationIT.java) | Every migration applies cleanly to an empty database, and the event publication registry exists |
+| [`DatabaseRoleSeparationIT`](../src/test/java/com/example/dddspringbootmodulithtemplate/platform/DatabaseRoleSeparationIT.java) | `ddd_app` connects as itself, can read and write rows, and cannot create or drop tables |
+| `ApplicationLaunchIT` | The context starts against the migrated schema |
 
-`DatabaseRoleSeparationTest` injects the application's own `DataSource`, so it exercises the exact credential the app uses at runtime.
+`DatabaseRoleSeparationIT` injects the application's own `DataSource`, so it exercises the exact credential the app uses at runtime.
 
 The case it exists for: `ALTER DEFAULT PRIVILEGES` in the provisioning script covers tables and sequences in `public`. A later migration that creates a schema, a function, or a type leaves `ddd_app` without access to it, and nothing else would catch that before someone hit it in production.
 
@@ -46,7 +64,7 @@ Tests mirror the package they exercise. Packages that mirror nothing are the one
 
 ```
 src/test/java/com/example/dddspringbootmodulithtemplate/
-├── ApplicationLaunchTest   mirrors the root package
+├── ApplicationLaunchIT     mirrors the root package
 ├── platform/               schema, migrations, database roles
 └── support/                shared fixtures, no tests
 ```
@@ -54,3 +72,22 @@ src/test/java/com/example/dddspringbootmodulithtemplate/
 `platform` holds tests of the substrate every module runs on. It's deliberately not called `infrastructure`, since that name belongs to the layer inside each module and the two mean different things.
 
 `support` holds machinery tests are built from. Nothing in it runs on its own.
+
+## In CI
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) mirrors the two tiers as two jobs, so the cheap half runs far more often than the expensive one.
+
+| Job | Runs | On |
+|---|---|---|
+| `fast-tests` | `./mvnw test` | Every push, on any branch |
+| `build-and-test` | `./mvnw verify` | Pull requests, and pushes to `main` and `develop` |
+
+`fast-tests` also compiles both source sets, so a push that doesn't compile fails in well under a minute without waiting on a container. That is most of its value while the surefire tier holds no tests.
+
+Neither job lists the tests it runs, so adding one changes what CI does without touching the YAML.
+
+GitHub's hosted runners already have a Docker daemon, so Testcontainers works there with no extra setup. The workflow declares no `services:` block, because the tests provision their own database — the same code path a developer runs locally, on the same script.
+
+A pull request opened from a branch in this repository would otherwise run `fast-tests` twice, once for the push and once for the pull request. The job skips the pull request event when the head branch lives in this repository, which leaves forks covered.
+
+Require `build-and-test` as the status check in a branch ruleset. Requiring `fast-tests` as well would block those same-repo pull requests, since the job it skips reports nothing to wait for.

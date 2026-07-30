@@ -29,7 +29,7 @@ import com.example.dddspringbootmodulithtemplate.support.PostgresIntegrationTest
  * before runtime.
  */
 @SpringBootTest
-class DatabaseRoleSeparationTest extends PostgresIntegrationTest {
+class DatabaseRoleSeparationIT extends PostgresIntegrationTest {
 
     /** Postgres SQLSTATE for insufficient_privilege. */
     private static final String INSUFFICIENT_PRIVILEGE = "42501";
